@@ -1,0 +1,260 @@
+<html><head><base href="/" /><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GAS Hangman</title>
+<style>
+:root {
+  --primary: #ffffff;
+  --secondary: #34495e;
+  --accent: #e74c3c;
+}
+
+body {
+  font-family: 'Arial', sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: var(--primary);
+  color: black;
+  min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+}
+
+.hangman-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.hangman-svg {
+  background: var(--secondary);
+  padding: 20px;
+  border-radius: 10px;
+  margin: 20px 0;
+}
+
+.word-display {
+  font-size: 2.5rem;
+  letter-spacing: 10px;
+  margin: 20px 0;
+}
+
+.keyboard {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  max-width: 500px;
+}
+
+.key {
+  background: var(--secondary);
+  border: none;
+  color: white;
+  padding: 15px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all 0.3s ease;
+}
+
+.key:hover {
+  background: var(--accent);
+  transform: scale(1.1);
+}
+
+.key.used {
+  background: #7f8c8d;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.message {
+  font-size: 1.5rem;
+  margin: 20px 0;
+  text-align: center;
+}
+
+.reset-btn, .hint-btn {
+  background: var(--accent);
+  border: none;
+  color: white;
+  padding: 15px 30px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border-radius: 5px;
+  margin: 10px;
+  transition: all 0.3s ease;
+}
+
+.reset-btn:hover, .hint-btn:hover {
+  transform: scale(1.1);
+}
+
+.hint-btn:disabled {
+  background: #7f8c8d;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.timer {
+  font-size: 1.2rem;
+  margin: 10px 0;
+  color: #34495e;
+}
+</style>
+</head>
+<body>
+<div class="hangman-container">
+  <h1>Hangman (Workplace)</h1>
+  <div class="timer">Time: 0:00</div>
+  <svg class="hangman-svg" width="200" height="250" viewBox="0 0 200 250">
+    <!-- Gallows -->
+    <line x1="20" y1="230" x2="180" y2="230" stroke="white" stroke-width="3"/>
+    <line x1="40" y1="230" x2="40" y2="20" stroke="white" stroke-width="3"/>
+    <line x1="40" y1="20" x2="120" y2="20" stroke="white" stroke-width="3"/>
+    <line x1="120" y1="20" x2="120" y2="50" stroke="white" stroke-width="3"/>
+    
+    <!-- Hangman parts (initially hidden) -->
+    <g id="hangman-parts" stroke="white" fill="none" stroke-width="3"></g>
+  </svg>
+  
+  <div class="word-display"></div>
+  <div class="keyboard"></div>
+  <div class="message"></div>
+  <div class="button-container">
+    <button class="hint-btn">Get Hint</button>
+    <button class="reset-btn">New Game</button>
+  </div>
+</div>
+
+<script>
+const words = [  
+  'WORKPLACE', 'EMPLOYEE', 'EMPLOYER', 'BOSS', 'COLLEAGUE', 'TEAM', 'MEETING', 'PROJECT',  
+  'DEADLINE', 'TASK', 'OFFICE', 'DESK', 'COMPUTER', 'KEYBOARD', 'PRINTER', 'FILE',  
+  'DOCUMENT', 'REPORT', 'PRESENTATION', 'CONFERENCE', 'WORKLOAD', 'SALARY', 'BONUS', 'PROMOTION',  
+  'TRAINING', 'INTERVIEW', 'HIRING', 'RESUME', 'CANDIDATE', 'POSITION', 'VACANCY', 'OFFICEHOURS',  
+  'JOBDESCRIPTION', 'WORKSPACE', 'CONTRACT', 'EMPLOYMENT', 'BENEFITS', 'COFFEEBREAK', 'SUPERVISOR',  
+  'MANAGER', 'DEPARTMENT', 'ORGANIZATION', 'COOPERATION', 'FEEDBACK', 'PERFORMANCE', 'APPRAISAL',  
+  'COLLABORATION', 'MOTIVATION', 'SICKLEAVE'  
+];
+
+let word = '';
+let guessedLetters = new Set();
+let remainingGuesses = 6;
+let hintsRemaining = 1;
+let startTime;
+let timerInterval;
+
+const hangmanParts = [
+  '<circle cx="120" cy="75" r="25"/>', // Head
+  '<line x1="120" y1="100" x2="120" y2="150"/>', // Body
+  '<line x1="120" y1="120" x2="85" y2="100"/>', // Left arm
+  '<line x1="120" y1="120" x2="155" y2="100"/>', // Right arm
+  '<line x1="120" y1="150" x2="85" y2="180"/>', // Left leg
+  '<line x1="120" y1="150" x2="155" y2="180"/>' // Right leg
+];
+
+function updateTimer() {
+  const currentTime = new Date();
+  const elapsedSeconds = Math.floor((currentTime - startTime) / 1000);
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  document.querySelector('.timer').textContent = 
+    `Time: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+}
+
+function initGame() {
+  word = words[Math.floor(Math.random() * words.length)];
+  guessedLetters.clear();
+  remainingGuesses = 6;
+  hintsRemaining = 1;
+  document.getElementById('hangman-parts').innerHTML = '';
+  updateDisplay();
+  createKeyboard();
+  document.querySelector('.message').textContent = '';
+  document.querySelector('.hint-btn').disabled = false;
+  
+  // Reset and start timer
+  if (timerInterval) clearInterval(timerInterval);
+  startTime = new Date();
+  timerInterval = setInterval(updateTimer, 1000);
+}
+
+function createKeyboard() {
+  const keyboard = document.querySelector('.keyboard');
+  keyboard.innerHTML = '';
+  for (let i = 65; i <= 90; i++) {
+    const letter = String.fromCharCode(i);
+    const button = document.createElement('button');
+    button.textContent = letter;
+    button.className = 'key';
+    button.addEventListener('click', () => handleGuess(letter));
+    keyboard.appendChild(button);
+  }
+}
+
+function handleGuess(letter) {
+  if (guessedLetters.has(letter)) return;
+  
+  guessedLetters.add(letter);
+  const button = Array.from(document.querySelectorAll('.key'))
+    .find(key => key.textContent === letter);
+  button.classList.add('used');
+  
+  if (!word.includes(letter)) {
+    remainingGuesses--;
+    document.getElementById('hangman-parts').innerHTML += hangmanParts[5 - remainingGuesses];
+  }
+  
+  updateDisplay();
+  checkGameEnd();
+}
+
+function updateDisplay() {
+  const display = document.querySelector('.word-display');
+  display.textContent = word
+    .split('')
+    .map(letter => guessedLetters.has(letter) ? letter : '_')
+    .join(' ');
+}
+
+function checkGameEnd() {
+  const won = word.split('').every(letter => guessedLetters.has(letter));
+  const lost = remainingGuesses === 0;
+  
+  if (won || lost) {
+    clearInterval(timerInterval);
+    const timeSpent = document.querySelector('.timer').textContent;
+    const message = won ? `🎉 You Won! ${timeSpent} 🎉` : `😔 Game Over! The word was "${word}"! ${timeSpent}`;
+    document.querySelector('.message').textContent = message;
+    document.querySelectorAll('.key').forEach(key => {
+      key.disabled = true;
+      key.classList.add('used');
+    });
+    document.querySelector('.hint-btn').disabled = true;
+  }
+}
+
+function getHint() {
+  if (hintsRemaining <= 0) return;
+  
+  const unguessedLetters = word
+    .split('')
+    .filter(letter => !guessedLetters.has(letter));
+    
+  if (unguessedLetters.length > 0) {
+    const randomLetter = unguessedLetters[Math.floor(Math.random() * unguessedLetters.length)];
+    handleGuess(randomLetter);
+    hintsRemaining--;
+    document.querySelector('.hint-btn').disabled = true;
+  }
+}
+
+document.querySelector('.reset-btn').addEventListener('click', initGame);
+document.querySelector('.hint-btn').addEventListener('click', getHint);
+
+// Start the game
+initGame();
+</script>
+ <div class="footer">Author: Aaron Shi. Released in November, 2024.</div>
+</body></html>
